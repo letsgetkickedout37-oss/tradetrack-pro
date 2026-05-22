@@ -592,6 +592,25 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
   <img id="lightbox-img" src="" alt=""/>
 </div>
 
+<!-- GALLERY PHOTO EDIT MODAL -->
+<div class="mo" id="m-gallery-edit">
+  <div class="modal" style="max-width:420px">
+    <div class="mh"><div class="mt2">Edit Photo</div><button class="xb" onclick="closeM('m-gallery-edit')"><i class="ti ti-x"></i></button></div>
+    <div style="margin-bottom:12px">
+      <label style="font-size:12px;font-weight:600;color:var(--t2);display:block;margin-bottom:4px">Date</label>
+      <input type="date" id="gedit-date" style="width:100%;padding:8px 10px;border:1px solid var(--bd);border-radius:var(--rm);font-size:13px;background:var(--s);color:var(--tx);font-family:inherit;outline:none"/>
+    </div>
+    <div style="margin-bottom:16px">
+      <label style="font-size:12px;font-weight:600;color:var(--t2);display:block;margin-bottom:4px">Description</label>
+      <textarea id="gedit-desc" rows="3" placeholder="What's this photo of?" style="width:100%;padding:8px 10px;border:1px solid var(--bd);border-radius:var(--rm);font-size:13px;background:var(--s);color:var(--tx);font-family:inherit;outline:none;resize:vertical;box-sizing:border-box"></textarea>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button onclick="saveGalleryEdit()" style="flex:1;padding:9px;background:#0f2844;color:#fff;border:none;border-radius:var(--rm);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Save</button>
+      <button onclick="closeM('m-gallery-edit')" style="padding:9px 16px;background:var(--s2);color:var(--tx);border:1px solid var(--bd);border-radius:var(--rm);font-size:13px;cursor:pointer;font-family:inherit">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <script type="module">
 import{initializeApp}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import{getAuth,GoogleAuthProvider,signInWithPopup,signOut as fbSignOut,onAuthStateChanged}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
@@ -1266,9 +1285,13 @@ async function renderGallery(items){
   g.innerHTML=items.map(p=>
     '<div style="position:relative;border-radius:10px;overflow:hidden;background:var(--s);border:1px solid var(--bd);box-shadow:0 2px 8px rgba(0,0,0,0.07)">'
     +'<img src="'+p.data+'" style="width:100%;aspect-ratio:1;object-fit:cover;display:block;cursor:pointer" onclick="openGalleryLightbox(\''+p.id+'\')" />'
-    +'<div style="padding:6px 8px 8px;display:flex;align-items:center;justify-content:space-between">'
+    +'<div style="padding:6px 8px 8px">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;gap:4px">'
     +'<div style="font-size:11px;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">'+fd(p.date)+'</div>'
+    +'<button onclick="openGalleryEdit(\''+p.id+'\')" style="background:none;border:none;cursor:pointer;color:var(--t2);font-size:14px;padding:0 2px;flex-shrink:0" title="Edit"><i class="ti ti-pencil"></i></button>'
     +'<button onclick="delGalleryPhoto(\''+p.id+'\')" style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:14px;padding:0 2px;flex-shrink:0" title="Remove"><i class="ti ti-trash"></i></button>'
+    +'</div>'
+    +(p.desc?'<div style="font-size:11px;color:var(--tx);margin-top:3px;line-height:1.4;word-break:break-word">'+p.desc+'</div>':'')
     +'</div></div>'
   ).join('');
 }
@@ -1278,6 +1301,29 @@ window.openGalleryLightbox=function(photoId){
   var p=items.find(x=>x.id===photoId);if(!p)return;
   document.getElementById('lightbox-img').src=p.data;
   document.getElementById('lightbox').classList.add('open');
+};
+
+window.openGalleryEdit=function(photoId){
+  var items=window._galleryItems||[];
+  var p=items.find(x=>x.id===photoId);if(!p)return;
+  window._editingGalleryId=photoId;
+  document.getElementById('gedit-date').value=p.date||td();
+  document.getElementById('gedit-desc').value=p.desc||'';
+  document.getElementById('m-gallery-edit').classList.add('open');
+};
+
+window.saveGalleryEdit=async function(){
+  if(!currentUser)return;
+  var photoId=window._editingGalleryId;
+  var snap=await getDoc(doc(db,'users',currentUser.uid,'gallery','photos')).catch(()=>null);
+  var gallery=snap&&snap.exists()?snap.data().items||[]:[];
+  var idx=gallery.findIndex(p=>p.id===photoId);if(idx===-1)return;
+  gallery[idx].date=document.getElementById('gedit-date').value||td();
+  gallery[idx].desc=document.getElementById('gedit-desc').value.trim();
+  setSyncing(true);
+  try{await setDoc(doc(db,'users',currentUser.uid,'gallery','photos'),{items:gallery});}catch(e){console.error(e);}
+  closeM('m-gallery-edit');
+  renderGallery(gallery);toast('Photo updated!');
 };
 
 renderMC();
