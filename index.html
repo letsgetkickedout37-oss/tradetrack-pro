@@ -762,9 +762,10 @@ window.render=function(){
         +'<button class="qb qr" onclick="delClient(\''+c.id+'\')" title="Delete"><i class="ti ti-trash"></i><span>Del</span></button>'
         +'</div>'
         +'<div class="cf">'
-        +'<div style="display:flex;gap:10px;align-items:center">'
+        +'<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'
         +'<button class="link-btn" onclick="openDetail(\''+c.id+'\')"><i class="ti ti-history" style="font-size:14px"></i> History &amp; Payments</button>'
         +(photoCount>0?'<button class="photo-btn" onclick="openPhotos(\''+c.id+'\')"><i class="ti ti-photo" style="font-size:14px"></i> See photos ('+photoCount+')</button>':'')
+        +'<button class="photo-btn" style="color:#0f2844" onclick="rescheduleClient(\''+c.id+'\')"><i class="ti ti-calendar-plus" style="font-size:14px"></i> New Job</button>'
         +'</div>'
         +'<span style="font-size:12px;color:var(--t2)">'+(c.hist||[]).length+' entries</span>'
         +'</div>'
@@ -803,6 +804,26 @@ window.openAdd=function(){
   document.getElementById('a-sv').value='General';
   document.getElementById('a-st').value='active';
   document.getElementById('a-py').value='unpaid';
+  selectedDates=[];mcMo=new Date().getMonth();mcYr=new Date().getFullYear();
+  renderMC();
+  document.getElementById('m-add').classList.add('open');
+};
+
+window.rescheduleClient=function(id){
+  var c=clients.find(x=>x.id===id);if(!c)return;
+  editId=null;
+  document.getElementById('m-add-title').textContent='New Job — '+c.fn+' '+c.ln;
+  document.getElementById('a-fn').value=c.fn||'';
+  document.getElementById('a-ln').value=c.ln||'';
+  document.getElementById('a-ph').value=c.ph||'';
+  document.getElementById('a-em').value=c.em||'';
+  document.getElementById('a-ad').value=c.ad||'';
+  document.getElementById('a-sv').value=c.sv||'General';
+  document.getElementById('a-st').value='active';
+  document.getElementById('a-am').value='';
+  document.getElementById('a-py').value='unpaid';
+  document.getElementById('a-tm').value='';
+  document.getElementById('a-nt').value='';
   selectedDates=[];mcMo=new Date().getMonth();mcYr=new Date().getFullYear();
   renderMC();
   document.getElementById('m-add').classList.add('open');
@@ -1313,17 +1334,26 @@ window.openGalleryEdit=function(photoId){
 };
 
 window.saveGalleryEdit=async function(){
-  if(!currentUser)return;
+  if(!currentUser){toast('Not signed in');return;}
   var photoId=window._editingGalleryId;
-  var snap=await getDoc(doc(db,'users',currentUser.uid,'gallery','photos')).catch(()=>null);
-  var gallery=snap&&snap.exists()?snap.data().items||[]:[];
-  var idx=gallery.findIndex(p=>p.id===photoId);if(idx===-1)return;
-  gallery[idx].date=document.getElementById('gedit-date').value||td();
-  gallery[idx].desc=document.getElementById('gedit-desc').value.trim();
+  if(!photoId){toast('No photo selected');return;}
+  var items=window._galleryItems||[];
+  var idx=items.findIndex(p=>p.id===photoId);
+  if(idx===-1){toast('Photo not found');return;}
+  items[idx].date=document.getElementById('gedit-date').value||td();
+  items[idx].desc=document.getElementById('gedit-desc').value.trim();
+  window._galleryItems=items;
   setSyncing(true);
-  try{await setDoc(doc(db,'users',currentUser.uid,'gallery','photos'),{items:gallery});}catch(e){console.error(e);}
-  closeM('m-gallery-edit');
-  renderGallery(gallery);toast('Photo updated!');
+  try{
+    await setDoc(doc(db,'users',currentUser.uid,'gallery','photos'),{items:items});
+    closeM('m-gallery-edit');
+    renderGallery(items);
+    toast('Photo updated!');
+  }catch(e){
+    console.error(e);
+    toast('Save failed — check connection');
+  }
+  setSyncing(false);
 };
 
 renderMC();
