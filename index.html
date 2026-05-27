@@ -175,12 +175,16 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
 .mc-nav{background:none;border:1px solid var(--bd);border-radius:6px;padding:2px 10px;cursor:pointer;font-size:16px;font-family:inherit;color:var(--tx)}
 .mc-nav:hover{background:var(--s)}
 .mc-title-txt{font-size:13px;font-weight:700;color:var(--tx)}
-.mc-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center}
+.mc-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:0;text-align:center}
 .mc-dow{font-size:10px;font-weight:700;color:var(--t2);padding:3px 0}
-.mc-day{font-size:12px;padding:5px 2px;border-radius:6px;cursor:pointer;border:1px solid transparent;font-weight:500;transition:all .1s;user-select:none;color:var(--tx)}
-.mc-day:hover{background:#0f2844;color:#fff}
-.mc-day.sel{background:#32cd32;color:#0a3a0a;font-weight:700;border-color:#28b428}
-.mc-day.tod{border-color:#0f2844}
+.mc-day{font-size:12px;padding:5px 2px;border-radius:6px;cursor:pointer;border:1px solid transparent;font-weight:500;transition:background .1s,color .1s,border-color .1s;user-select:none;color:var(--tx)}
+.mc-day:hover{background:#0f2844;color:#fff;border-radius:6px}
+.mc-day.sel{background:#32cd32;color:#0a3a0a;font-weight:700;border-color:transparent}
+.mc-day.sel-single{border-radius:8px}
+.mc-day.sel-start{border-radius:8px 0 0 8px}
+.mc-day.sel-mid{border-radius:0}
+.mc-day.sel-end{border-radius:0 8px 8px 0}
+.mc-day.tod{outline:2px solid #0f2844;outline-offset:-2px;border-color:transparent}
 .mc-day.om{opacity:.3;pointer-events:none}
 .mc-sel-label{margin-top:8px;font-size:12px;color:var(--t2);min-height:18px}
 /* CALENDAR */
@@ -708,15 +712,39 @@ function renderMC(){
   var days=new Date(mcYr,mcMo+1,0).getDate();
   var now=new Date();
   var todayStr=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+  var selSet=new Set(selectedDates);
+  var sortedSel=[...selectedDates].sort();
+  function shiftDay(ds,n){var d=new Date(ds+'T12:00:00');d.setDate(d.getDate()+n);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
   for(var i=0;i<first;i++)html+='<div class="mc-day om">'+new Date(mcYr,mcMo,-first+i+1).getDate()+'</div>';
   for(var d=1;d<=days;d++){
     var ds=mcYr+'-'+String(mcMo+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
-    var isSel=selectedDates.includes(ds);var isToday=ds===todayStr;
-    html+='<div class="mc-day'+(isSel?' sel':'')+(isToday?' tod':'')+'" onclick="toggleDate(\''+ds+'\')">'+d+'</div>';
+    var isSel=selSet.has(ds);var isToday=ds===todayStr;
+    var rc='';
+    if(isSel){
+      var dow=new Date(ds+'T12:00:00').getDay();
+      var hp=selSet.has(shiftDay(ds,-1))&&dow!==0;
+      var hn=selSet.has(shiftDay(ds,1))&&dow!==6;
+      rc=hp&&hn?' sel-mid':hp?' sel-end':hn?' sel-start':' sel-single';
+    }
+    html+='<div class="mc-day'+(isSel?' sel'+rc:'')+(isToday?' tod':'')+'" onclick="toggleDate(\''+ds+'\')">'+d+'</div>';
   }
   g.innerHTML=html;
   var selEl=document.getElementById('mc-sel');
-  if(selEl){var sorted=[...selectedDates].sort();selEl.textContent=sorted.length?'Selected: '+sorted.map(d=>fd(d)).join(', '):'No dates selected yet';}
+  if(selEl){
+    if(!sortedSel.length){selEl.textContent='No dates selected yet';}
+    else{
+      var ranges=[];var rs=sortedSel[0],rp=sortedSel[0];
+      for(var k=1;k<sortedSel.length;k++){
+        if(sortedSel[k]===shiftDay(rp,1)){rp=sortedSel[k];}
+        else{ranges.push([rs,rp]);rs=sortedSel[k];rp=sortedSel[k];}
+      }
+      ranges.push([rs,rp]);
+      selEl.textContent='Selected: '+ranges.map(function(r){
+        if(r[0]===r[1])return fd(r[0]);
+        return fd(r[0]).replace(/,\s*\d{4}$/,'')+' – '+fd(r[1]);
+      }).join(', ');
+    }
+  }
 }
 
 // RENDER CLIENTS
