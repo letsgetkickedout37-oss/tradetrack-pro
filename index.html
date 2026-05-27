@@ -798,7 +798,7 @@ window.undoDone=async function(id){
 };
 
 window.openAdd=function(){
-  editId=null;
+  editId=null;window._isReschedule=false;
   document.getElementById('m-add-title').textContent='Add New Client';
   ['a-fn','a-ln','a-ph','a-em','a-ad','a-nt','a-am','a-tm'].forEach(f=>{var e=document.getElementById(f);if(e)e.value='';});
   document.getElementById('a-sv').value='General';
@@ -811,7 +811,7 @@ window.openAdd=function(){
 
 window.rescheduleClient=function(id){
   var c=clients.find(x=>x.id===id);if(!c)return;
-  editId=null;
+  editId=id;window._isReschedule=true;
   document.getElementById('m-add-title').textContent='New Job — '+c.fn+' '+c.ln;
   document.getElementById('a-fn').value=c.fn||'';
   document.getElementById('a-ln').value=c.ln||'';
@@ -857,6 +857,17 @@ window.saveClient=async function(){
   var ln=document.getElementById('a-ln').value.trim();
   if(!fn&&!ln){alert('Please enter a client name.');return;}
   var existing=editId?clients.find(x=>x.id===editId):null;
+  // If rescheduling, archive the old job into history before overwriting
+  if(window._isReschedule&&existing){
+    var oldDates=allDates(existing);
+    var oldText=(existing.sv||'General')
+      +(existing.am?' · $'+Number(existing.am).toLocaleString():'')
+      +(oldDates.length?' · '+oldDates.map(d=>fd(d)).join(', '):'')
+      +' · '+((existing.st||'active').charAt(0).toUpperCase()+(existing.st||'active').slice(1));
+    if(!existing.hist)existing.hist=[];
+    existing.hist.push({type:'job',text:oldText,date:td()});
+    window._isReschedule=false;
+  }
   var sortedDates=[...selectedDates].sort();
   var c={
     id:editId||Date.now().toString(),fn,ln,
@@ -932,7 +943,7 @@ function renderOverview(c){
 
 function renderHistory(c){
   var hist=c.hist||[];
-  var labels={note:'Note',call:'Call Made',quote:'Quote Sent',service:'Service Completed',payment:'Payment Received'};
+  var labels={note:'Note',call:'Call Made',quote:'Quote Sent',service:'Service Completed',payment:'Payment Received',job:'Previous Job'};
   var tl=document.getElementById('tl-list');
   if(!hist.length){tl.innerHTML='<div style="padding:20px 0;text-align:center;color:var(--t2);font-size:13px">No history yet. Add your first entry below.</div>';return;}
   tl.innerHTML=[...hist].reverse().map((h,ri)=>{
