@@ -199,9 +199,11 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
 .cday{min-height:66px;padding:5px;border-radius:var(--rm);border:1px solid transparent;cursor:pointer;transition:background .1s}
 .cday:hover{background:var(--s2)}.cday.today{border-color:#0f2844;background:#f0f4f9}.cday.om{opacity:.3}
 .cday.has-event{cursor:pointer}
-.cday.busy{background:rgba(226,75,74,0.07);border-color:rgba(226,75,74,0.25)}
-.cday.busy .cdn{color:#e24b4a}
-.cday.busy.today{background:rgba(226,75,74,0.12);border-color:#e24b4a}
+.cday.busy-all{background:rgba(226,75,74,0.06);border:2px solid #e24b4a}
+.cday.busy-all .cdn,.cday.busy-all .cdn span{color:#e24b4a}
+.cday.busy-all.today{background:rgba(226,75,74,0.12)}
+.cday.busy-times{border:1px dashed rgba(226,75,74,0.55)}
+.cday.busy-times .cdn{color:#e24b4a}
 /* DAY POPUP */
 .day-popup{position:fixed;z-index:150;background:var(--s);border-radius:var(--rl);border:1px solid var(--bd);box-shadow:0 8px 32px rgba(0,0,0,0.2);width:300px;padding:16px;display:none;}
 .day-popup.open{display:block;}
@@ -216,6 +218,13 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
 .day-popup-empty{font-size:13px;color:var(--t2);text-align:center;padding:8px 0 4px}
 .day-popup-busy-banner{background:#fef0f0;border:1px solid rgba(226,75,74,0.3);border-radius:var(--rm);padding:6px 10px;font-size:12px;font-weight:600;color:#e24b4a;margin-bottom:8px;display:none;align-items:center;gap:6px}
 .day-popup-busy-toggle{width:100%;margin-top:6px;padding:7px;font-size:12px;border-radius:var(--rm);cursor:pointer;font-weight:600;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:5px;transition:background .1s}
+.busy-choice{display:none;gap:6px;margin-top:6px}
+.busy-choice-btn{flex:1;padding:9px 4px;font-size:12px;border-radius:var(--rm);cursor:pointer;font-weight:700;font-family:inherit;border:none;display:flex;align-items:center;justify-content:center;gap:5px}
+.busy-slot{display:flex;align-items:center;justify-content:space-between;background:#fef0f0;border:1px solid rgba(226,75,74,0.2);border-radius:6px;padding:4px 8px;font-size:11px;color:#e24b4a;font-weight:600;margin-bottom:4px}
+.busy-slot-x{background:none;border:none;cursor:pointer;color:#e24b4a;font-size:13px;padding:0;line-height:1;margin-left:4px}
+.busy-time-row{display:flex;gap:4px;align-items:center;margin-bottom:6px;margin-top:6px}
+.busy-time-input{flex:1;min-width:0;padding:5px 4px;font-size:12px;border:1px solid var(--bd);border-radius:6px;font-family:inherit;color:var(--tx);background:var(--s2)}
+.busy-add-slot-btn{padding:5px 10px;font-size:12px;background:#e24b4a;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;font-family:inherit;white-space:nowrap}
 .cdn{font-size:12px;font-weight:600;color:var(--tx);margin-bottom:2px}
 .cday.today .cdn span{background:#0f2844;color:#fff;width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px}
 .cday-dots{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px;padding:0 1px}
@@ -591,10 +600,23 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
     <span id="day-popup-title">May 12</span>
     <button class="day-popup-close" onclick="closeDayPopup()"><i class="ti ti-x"></i></button>
   </div>
-  <div class="day-popup-busy-banner" id="day-popup-busy-banner"><i class="ti ti-ban"></i> Busy — day blocked</div>
+  <div class="day-popup-busy-banner" id="day-popup-busy-banner"><i class="ti ti-ban"></i> <span id="day-popup-busy-label">Busy</span></div>
+  <div id="day-popup-slots-list"></div>
+  <div id="day-popup-time-picker" style="display:none">
+    <div class="busy-time-row">
+      <input type="time" id="busy-t-start" class="busy-time-input" value="09:00">
+      <span style="font-size:11px;color:var(--t2);flex-shrink:0">to</span>
+      <input type="time" id="busy-t-end" class="busy-time-input" value="17:00">
+      <button class="busy-add-slot-btn" onclick="addBusySlot(dayPopupDate)">+ Add</button>
+    </div>
+  </div>
   <div id="day-popup-clients"></div>
-  <button class="day-popup-add" onclick="addFromDay()"><i class="ti ti-plus"></i> Add client for this day</button>
-  <button class="day-popup-busy-toggle" id="day-popup-busy-btn" onclick="toggleBusy(dayPopupDate)"></button>
+  <button class="day-popup-add" id="day-popup-add-btn" onclick="addFromDay()"><i class="ti ti-plus"></i> Add client for this day</button>
+  <div class="busy-choice" id="day-popup-busy-choice">
+    <button class="busy-choice-btn" style="background:#e24b4a;color:#fff" onclick="markBusy(dayPopupDate,'all')"><i class="ti ti-ban"></i> All Day</button>
+    <button class="busy-choice-btn" style="background:#0f2844;color:#fff" onclick="markBusy(dayPopupDate,'times')"><i class="ti ti-clock"></i> Set Times</button>
+  </div>
+  <button class="day-popup-busy-toggle" id="day-popup-busy-btn" onclick="showBusyChoice()"></button>
 </div>
 
 <!-- LIGHTBOX -->
@@ -644,7 +666,7 @@ const provider=new GoogleAuthProvider();
 let clients=[],editId=null,detId=null;
 let calMo=new Date().getMonth(),calYr=new Date().getFullYear();
 let unsubClients=null,unsubFin=null,unsubBusy=null,currentUser=null;
-let busyDates=new Set();
+let busyDates=new Map(); // date -> {type:'all'|'times', slots:[{s:'09:00',e:'17:00'}]}
 let selectedDates=[],mcMo=new Date().getMonth(),mcYr=new Date().getFullYear();
 let finData={bn:{entries:[]},boss:{entries:[]}};
 
@@ -667,7 +689,7 @@ onAuthStateChanged(auth,user=>{
     currentUser=null;
     document.getElementById('main-app').style.display='none';
     document.getElementById('login-screen').style.display='flex';
-    clients=[];busyDates=new Set();
+    clients=[];busyDates=new Map();
     if(unsubClients){unsubClients();unsubClients=null;}
     if(unsubFin){unsubFin();unsubFin=null;}
     if(unsubBusy){unsubBusy();unsubBusy=null;}
@@ -695,28 +717,74 @@ function subscribeFinance(uid){
 function subscribeBusyDates(uid){
   const ref=doc(db,'users',uid,'schedule','busy');
   unsubBusy=onSnapshot(ref,snap=>{
-    busyDates=new Set(snap.exists()?(snap.data().dates||[]):[]);
+    busyDates=new Map();
+    if(snap.exists()){var days=snap.data().days||{};Object.keys(days).forEach(k=>busyDates.set(k,days[k]));}
     renderCal();
   },err=>console.error(err));
 }
 async function saveBusyDates(){
   if(!currentUser)return;setSyncing(true);
-  try{await setDoc(doc(db,'users',currentUser.uid,'schedule','busy'),{dates:[...busyDates]});}
+  var days={};busyDates.forEach((v,k)=>days[k]=v);
+  try{await setDoc(doc(db,'users',currentUser.uid,'schedule','busy'),{days});}
   catch(e){console.error(e);toast('Save failed.');}
   setSyncing(false);
 }
-window.toggleBusy=async function(ds){
-  if(!currentUser||!ds)return;
-  if(busyDates.has(ds)){busyDates.delete(ds);toast('Day unblocked');}
-  else{busyDates.add(ds);toast('Day marked as busy');}
-  await saveBusyDates();
-  renderCal();
-  // refresh popup in-place
-  var isBusy=busyDates.has(ds);
-  document.getElementById('day-popup-busy-banner').style.display=isBusy?'flex':'none';
-  var btn=document.getElementById('day-popup-busy-btn');
-  if(isBusy){btn.innerHTML='<i class="ti ti-x"></i> Unmark as Busy';btn.style.cssText='width:100%;margin-top:6px;padding:7px;font-size:12px;border-radius:8px;cursor:pointer;font-weight:600;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:5px;background:none;border:1px solid #aaa;color:var(--t2)';}
-  else{btn.innerHTML='<i class="ti ti-ban"></i> Mark as Busy';btn.style.cssText='width:100%;margin-top:6px;padding:7px;font-size:12px;border-radius:8px;cursor:pointer;font-weight:600;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:5px;background:none;border:1px solid #e24b4a;color:#e24b4a';}
+function fmtTime12(t){if(!t)return'';var p=t.split(':');var h=+p[0],m=+p[1];var ap=h<12?'AM':'PM';var h12=h%12||12;return h12+(m?':'+String(m).padStart(2,'0'):'')+' '+ap;}
+function refreshBusyPopup(ds){
+  var info=busyDates.get(ds);
+  var banner=document.getElementById('day-popup-busy-banner');
+  var label=document.getElementById('day-popup-busy-label');
+  var picker=document.getElementById('day-popup-time-picker');
+  var slotsList=document.getElementById('day-popup-slots-list');
+  var addBtn=document.getElementById('day-popup-add-btn');
+  var choiceEl=document.getElementById('day-popup-busy-choice');
+  var busyBtn=document.getElementById('day-popup-busy-btn');
+  var markStyle='width:100%;margin-top:6px;padding:7px;font-size:12px;border-radius:8px;cursor:pointer;font-weight:600;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:5px;background:none;';
+  choiceEl.style.display='none';
+  if(!info){
+    banner.style.display='none';picker.style.display='none';slotsList.innerHTML='';
+    addBtn.style.display='flex';
+    busyBtn.style.display='flex';busyBtn.innerHTML='<i class="ti ti-ban"></i> Mark as Busy';busyBtn.style.cssText=markStyle+'border:1px solid #e24b4a;color:#e24b4a';
+  } else if(info.type==='all'){
+    banner.style.display='flex';label.textContent='All day — blocked';
+    picker.style.display='none';slotsList.innerHTML='';
+    addBtn.style.display='none';
+    busyBtn.style.display='flex';busyBtn.innerHTML='<i class="ti ti-x"></i> Unmark as Busy';busyBtn.style.cssText=markStyle+'border:1px solid #aaa;color:var(--t2)';
+  } else {
+    var slots=info.slots||[];
+    banner.style.display=slots.length?'flex':'none';
+    if(slots.length)label.textContent=slots.map(sl=>fmtTime12(sl.s)+' – '+fmtTime12(sl.e)).join(', ');
+    slotsList.innerHTML=slots.map((sl,i)=>'<div class="busy-slot">'+fmtTime12(sl.s)+' – '+fmtTime12(sl.e)+'<button class="busy-slot-x" onclick="removeBusySlot(\''+ds+'\','+i+')"><i class="ti ti-x"></i></button></div>').join('');
+    picker.style.display='block';addBtn.style.display='flex';
+    busyBtn.style.display='flex';busyBtn.innerHTML='<i class="ti ti-x"></i> Unmark All';busyBtn.style.cssText=markStyle+'border:1px solid #aaa;color:var(--t2)';
+  }
+}
+window.showBusyChoice=function(){
+  var info=busyDates.get(dayPopupDate);
+  if(info){busyDates.delete(dayPopupDate);saveBusyDates();renderCal();refreshBusyPopup(dayPopupDate);toast('Day unblocked');return;}
+  document.getElementById('day-popup-busy-choice').style.display='flex';
+  document.getElementById('day-popup-busy-btn').style.display='none';
+};
+window.markBusy=async function(ds,type){
+  busyDates.set(ds,{type,slots:[]});
+  await saveBusyDates();renderCal();refreshBusyPopup(ds);
+  if(type==='all')toast('Day blocked');
+};
+window.addBusySlot=async function(ds){
+  var s=document.getElementById('busy-t-start').value;
+  var e=document.getElementById('busy-t-end').value;
+  if(!s||!e){toast('Enter start and end time');return;}
+  if(s>=e){toast('End time must be after start time');return;}
+  var info=busyDates.get(ds)||{type:'times',slots:[]};
+  info.slots=info.slots||[];info.slots.push({s,e});
+  busyDates.set(ds,info);
+  await saveBusyDates();renderCal();refreshBusyPopup(ds);toast('Time added');
+};
+window.removeBusySlot=async function(ds,idx){
+  var info=busyDates.get(ds);if(!info)return;
+  info.slots.splice(idx,1);
+  if(!info.slots.length)busyDates.delete(ds);else busyDates.set(ds,info);
+  await saveBusyDates();renderCal();refreshBusyPopup(ds);
 };
 
 function setSyncing(v){const dot=document.getElementById('sync-dot');if(dot){dot.classList.toggle('syncing',v);}}
@@ -1222,11 +1290,12 @@ window.renderCal=function(){
     var isT=now.getFullYear()===calYr&&now.getMonth()===calMo&&now.getDate()===d;
     var ds=calYr+'-'+String(calMo+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
     var dc=clients.filter(c=>allDates(c).includes(ds));
-    var isBusy=busyDates.has(ds);
+    var busyInfo=busyDates.get(ds);
+    var busyCls=busyInfo?(busyInfo.type==='all'?' busy-all':' busy-times'):'';
     var numH=isT?'<div class="cdn"><span>'+d+'</span></div>':'<div class="cdn">'+d+'</div>';
     var evs=dc.length?'<div class="cday-dots">'+dc.map(c=>'<div class="cdot cdot-'+c.st+'" title="'+c.fn+' '+c.ln+'"></div>').join('')+'</div>':'';
-    var busyDot=isBusy&&!dc.length?'<div class="cday-dots"><div class="cdot" style="background:#e24b4a" title="Busy"></div></div>':'';
-    html+='<div class="cday'+(isT?' today':'')+(dc.length?' has-event':'')+(isBusy?' busy':'')+'" onclick="openDayPopup(event,\''+ds+'\')" >'+numH+evs+busyDot+'</div>';
+    var busyDot=busyInfo&&!dc.length?'<div class="cday-dots"><div class="cdot" style="background:#e24b4a" title="Busy"></div></div>':'';
+    html+='<div class="cday'+(isT?' today':'')+(dc.length?' has-event':'')+busyCls+'" onclick="openDayPopup(event,\''+ds+'\')" >'+numH+evs+busyDot+'</div>';
   }
   g.innerHTML=html;renderUpcoming();
 };
@@ -1301,12 +1370,8 @@ window.openDayPopup=function(e,ds){
         +'</div>';
     }).join('');
   }
-  // busy banner + toggle button
-  var isBusy=busyDates.has(ds);
-  document.getElementById('day-popup-busy-banner').style.display=isBusy?'flex':'none';
-  var busyBtn=document.getElementById('day-popup-busy-btn');
-  if(isBusy){busyBtn.innerHTML='<i class="ti ti-x"></i> Unmark as Busy';busyBtn.style.cssText='width:100%;margin-top:6px;padding:7px;font-size:12px;border-radius:8px;cursor:pointer;font-weight:600;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:5px;background:none;border:1px solid #aaa;color:var(--t2)';}
-  else{busyBtn.innerHTML='<i class="ti ti-ban"></i> Mark as Busy';busyBtn.style.cssText='width:100%;margin-top:6px;padding:7px;font-size:12px;border-radius:8px;cursor:pointer;font-weight:600;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:5px;background:none;border:1px solid #e24b4a;color:#e24b4a';}
+  // busy state
+  refreshBusyPopup(ds);
   // position popup: center on mobile, near click on desktop
   if(window.innerWidth<=640){
     popup.style.left='50%';
