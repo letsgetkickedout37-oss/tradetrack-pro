@@ -602,21 +602,9 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
   </div>
   <div class="day-popup-busy-banner" id="day-popup-busy-banner"><i class="ti ti-ban"></i> <span id="day-popup-busy-label">Busy</span></div>
   <div id="day-popup-slots-list"></div>
-  <div id="day-popup-time-picker" style="display:none">
-    <div class="busy-time-row">
-      <input type="time" id="busy-t-start" class="busy-time-input" value="09:00">
-      <span style="font-size:11px;color:var(--t2);flex-shrink:0">to</span>
-      <input type="time" id="busy-t-end" class="busy-time-input" value="17:00">
-      <button class="busy-add-slot-btn" onclick="addBusySlot(dayPopupDate)">+ Add</button>
-    </div>
-  </div>
   <div id="day-popup-clients"></div>
   <button class="day-popup-add" id="day-popup-add-btn" onclick="addFromDay()"><i class="ti ti-plus"></i> Add client for this day</button>
-  <div class="busy-choice" id="day-popup-busy-choice">
-    <button class="busy-choice-btn" style="background:#e24b4a;color:#fff" onclick="markBusy(dayPopupDate,'all')"><i class="ti ti-ban"></i> All Day</button>
-    <button class="busy-choice-btn" style="background:#0f2844;color:#fff" onclick="markBusy(dayPopupDate,'times')"><i class="ti ti-clock"></i> Set Times</button>
-  </div>
-  <button class="day-popup-busy-toggle" id="day-popup-busy-btn" onclick="showBusyChoice()"></button>
+  <button class="day-popup-busy-toggle" id="day-popup-busy-btn"></button>
 </div>
 
 <!-- LIGHTBOX -->
@@ -640,6 +628,36 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
     <div style="display:flex;gap:8px">
       <button onclick="saveGalleryEdit()" style="flex:1;padding:9px;background:#0f2844;color:#fff;border:none;border-radius:var(--rm);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Save</button>
       <button onclick="closeM('m-gallery-edit')" style="padding:9px 16px;background:var(--s2);color:var(--tx);border:1px solid var(--bd);border-radius:var(--rm);font-size:13px;cursor:pointer;font-family:inherit">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- BUSY TYPE MODAL -->
+<div class="mo" id="m-busy-type">
+  <div class="modal" style="max-width:360px">
+    <div class="mh"><div class="mt2" id="mbt-title">Mark as Busy</div><button class="xb" onclick="closeBusyModal()"><i class="ti ti-x"></i></button></div>
+    <div id="mbt-choose">
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px">
+        <button onclick="selectBusyAll()" style="padding:14px 16px;background:#e24b4a;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:12px;text-align:left">
+          <i class="ti ti-ban" style="font-size:22px;flex-shrink:0"></i>
+          <div><div>All Day</div><div style="font-size:11px;font-weight:400;opacity:0.85;margin-top:2px">Block the entire day — no new jobs</div></div>
+        </button>
+        <button onclick="selectBusyTimes()" style="padding:14px 16px;background:#0f2844;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:12px;text-align:left">
+          <i class="ti ti-clock" style="font-size:22px;flex-shrink:0"></i>
+          <div><div>Certain Times</div><div style="font-size:11px;font-weight:400;opacity:0.85;margin-top:2px">Set specific hours you're unavailable</div></div>
+        </button>
+      </div>
+    </div>
+    <div id="mbt-times" style="display:none">
+      <div style="font-size:13px;font-weight:600;color:var(--tx);margin-bottom:10px">Add unavailable times</div>
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px">
+        <input type="time" id="mbt-start" value="09:00" style="flex:1;min-width:0;padding:8px 6px;font-size:13px;border:1px solid var(--bd);border-radius:8px;font-family:inherit;background:var(--s2);color:var(--tx)">
+        <span style="color:var(--t2);font-size:13px;flex-shrink:0">to</span>
+        <input type="time" id="mbt-end" value="17:00" style="flex:1;min-width:0;padding:8px 6px;font-size:13px;border:1px solid var(--bd);border-radius:8px;font-family:inherit;background:var(--s2);color:var(--tx)">
+        <button onclick="addBusySlotModal()" style="padding:8px 12px;background:#e24b4a;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0">+ Add</button>
+      </div>
+      <div id="mbt-slots"></div>
+      <button onclick="closeBusyModal()" style="width:100%;margin-top:8px;padding:9px;background:var(--s2);border:1px solid var(--bd);color:var(--tx);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Done</button>
     </div>
   </div>
 </div>
@@ -734,57 +752,89 @@ function refreshBusyPopup(ds){
   var info=busyDates.get(ds);
   var banner=document.getElementById('day-popup-busy-banner');
   var label=document.getElementById('day-popup-busy-label');
-  var picker=document.getElementById('day-popup-time-picker');
   var slotsList=document.getElementById('day-popup-slots-list');
   var addBtn=document.getElementById('day-popup-add-btn');
-  var choiceEl=document.getElementById('day-popup-busy-choice');
   var busyBtn=document.getElementById('day-popup-busy-btn');
-  var markStyle='width:100%;margin-top:6px;padding:7px;font-size:12px;border-radius:8px;cursor:pointer;font-weight:600;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:5px;background:none;';
-  choiceEl.style.display='none';
+  var ms='width:100%;margin-top:6px;padding:7px;font-size:12px;border-radius:8px;cursor:pointer;font-weight:600;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:5px;background:none;';
   if(!info){
-    banner.style.display='none';picker.style.display='none';slotsList.innerHTML='';
+    banner.style.display='none';if(slotsList)slotsList.innerHTML='';
     addBtn.style.display='flex';
-    busyBtn.style.display='flex';busyBtn.innerHTML='<i class="ti ti-ban"></i> Mark as Busy';busyBtn.style.cssText=markStyle+'border:1px solid #e24b4a;color:#e24b4a';
+    busyBtn.style.cssText=ms+'border:1px solid #e24b4a;color:#e24b4a';
+    busyBtn.innerHTML='<i class="ti ti-ban"></i> Mark as Busy';
+    busyBtn.onclick=openBusyModal;
   } else if(info.type==='all'){
     banner.style.display='flex';label.textContent='All day — blocked';
-    picker.style.display='none';slotsList.innerHTML='';
-    addBtn.style.display='none';
-    busyBtn.style.display='flex';busyBtn.innerHTML='<i class="ti ti-x"></i> Unmark as Busy';busyBtn.style.cssText=markStyle+'border:1px solid #aaa;color:var(--t2)';
+    if(slotsList)slotsList.innerHTML='';addBtn.style.display='none';
+    busyBtn.style.cssText=ms+'border:1px solid #bbb;color:var(--t2)';
+    busyBtn.innerHTML='<i class="ti ti-x"></i> Unmark as Busy';
+    busyBtn.onclick=unmarkBusy;
   } else {
     var slots=info.slots||[];
     banner.style.display=slots.length?'flex':'none';
-    if(slots.length)label.textContent=slots.map(sl=>fmtTime12(sl.s)+' – '+fmtTime12(sl.e)).join(', ');
-    slotsList.innerHTML=slots.map((sl,i)=>'<div class="busy-slot">'+fmtTime12(sl.s)+' – '+fmtTime12(sl.e)+'<button class="busy-slot-x" onclick="removeBusySlot(\''+ds+'\','+i+')"><i class="ti ti-x"></i></button></div>').join('');
-    picker.style.display='block';addBtn.style.display='flex';
-    busyBtn.style.display='flex';busyBtn.innerHTML='<i class="ti ti-x"></i> Unmark All';busyBtn.style.cssText=markStyle+'border:1px solid #aaa;color:var(--t2)';
+    if(slots.length)label.textContent=slots.map(function(sl){return fmtTime12(sl.s)+' – '+fmtTime12(sl.e);}).join(', ');
+    if(slotsList)slotsList.innerHTML=slots.map(function(sl,i){return'<div class="busy-slot">'+fmtTime12(sl.s)+' – '+fmtTime12(sl.e)+'<button class="busy-slot-x" onclick="removeBusySlotModal('+i+')"><i class="ti ti-x"></i></button></div>';}).join('');
+    addBtn.style.display='flex';
+    busyBtn.style.cssText=ms+'border:1px solid #bbb;color:var(--t2)';
+    busyBtn.innerHTML='<i class="ti ti-clock"></i> Edit Busy Times';
+    busyBtn.onclick=openBusyModal;
   }
 }
-window.showBusyChoice=function(){
+function refreshMbtSlots(){
   var info=busyDates.get(dayPopupDate);
-  if(info){busyDates.delete(dayPopupDate);saveBusyDates();renderCal();refreshBusyPopup(dayPopupDate);toast('Day unblocked');return;}
-  document.getElementById('day-popup-busy-choice').style.display='flex';
-  document.getElementById('day-popup-busy-btn').style.display='none';
+  var slots=info&&info.slots?info.slots:[];
+  document.getElementById('mbt-slots').innerHTML=slots.map(function(sl,i){return'<div class="busy-slot">'+fmtTime12(sl.s)+' – '+fmtTime12(sl.e)+'<button class="busy-slot-x" onclick="removeBusySlotModal('+i+')"><i class="ti ti-x"></i></button></div>';}).join('');
+}
+window.openBusyModal=function(){
+  var info=busyDates.get(dayPopupDate);
+  if(info&&info.type==='times'){
+    document.getElementById('mbt-choose').style.display='none';
+    document.getElementById('mbt-times').style.display='block';
+    refreshMbtSlots();
+  } else {
+    document.getElementById('mbt-choose').style.display='block';
+    document.getElementById('mbt-times').style.display='none';
+  }
+  document.getElementById('m-busy-type').classList.add('open');
 };
-window.markBusy=async function(ds,type){
-  busyDates.set(ds,{type,slots:[]});
-  await saveBusyDates();renderCal();refreshBusyPopup(ds);
-  if(type==='all')toast('Day blocked');
+window.closeBusyModal=function(){
+  document.getElementById('m-busy-type').classList.remove('open');
+  refreshBusyPopup(dayPopupDate);
 };
-window.addBusySlot=async function(ds){
-  var s=document.getElementById('busy-t-start').value;
-  var e=document.getElementById('busy-t-end').value;
+window.unmarkBusy=function(){
+  if(!dayPopupDate)return;
+  busyDates.delete(dayPopupDate);
+  saveBusyDates();renderCal();refreshBusyPopup(dayPopupDate);toast('Day unblocked');
+};
+window.selectBusyAll=async function(){
+  busyDates.set(dayPopupDate,{type:'all',slots:[]});
+  await saveBusyDates();renderCal();
+  document.getElementById('m-busy-type').classList.remove('open');
+  refreshBusyPopup(dayPopupDate);toast('Day blocked');
+};
+window.selectBusyTimes=function(){
+  if(!busyDates.has(dayPopupDate)||busyDates.get(dayPopupDate).type!=='times'){
+    busyDates.set(dayPopupDate,{type:'times',slots:[]});
+    saveBusyDates();renderCal();
+  }
+  document.getElementById('mbt-choose').style.display='none';
+  document.getElementById('mbt-times').style.display='block';
+  refreshMbtSlots();
+};
+window.addBusySlotModal=async function(){
+  var s=document.getElementById('mbt-start').value;
+  var e=document.getElementById('mbt-end').value;
   if(!s||!e){toast('Enter start and end time');return;}
   if(s>=e){toast('End time must be after start time');return;}
-  var info=busyDates.get(ds)||{type:'times',slots:[]};
+  var info=busyDates.get(dayPopupDate)||{type:'times',slots:[]};
   info.slots=info.slots||[];info.slots.push({s,e});
-  busyDates.set(ds,info);
-  await saveBusyDates();renderCal();refreshBusyPopup(ds);toast('Time added');
+  busyDates.set(dayPopupDate,info);
+  await saveBusyDates();renderCal();refreshMbtSlots();toast('Time added');
 };
-window.removeBusySlot=async function(ds,idx){
-  var info=busyDates.get(ds);if(!info)return;
+window.removeBusySlotModal=async function(idx){
+  var info=busyDates.get(dayPopupDate);if(!info)return;
   info.slots.splice(idx,1);
-  if(!info.slots.length)busyDates.delete(ds);else busyDates.set(ds,info);
-  await saveBusyDates();renderCal();refreshBusyPopup(ds);
+  if(!info.slots.length)busyDates.delete(dayPopupDate);else busyDates.set(dayPopupDate,info);
+  await saveBusyDates();renderCal();refreshMbtSlots();
 };
 
 function setSyncing(v){const dot=document.getElementById('sync-dot');if(dot){dot.classList.toggle('syncing',v);}}
