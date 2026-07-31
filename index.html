@@ -852,6 +852,17 @@ function sbadge(s){var lbl={active:'Active',pending:'Pending',completed:'Complet
 function pbadge(p){p=p||'unpaid';var lbl={paid:'Paid',unpaid:'Unpaid',partial:'Partial'};var cls={paid:'b-paid',unpaid:'b-unpaid',partial:'b-partial'};return'<span class="badge '+cls[p]+'">'+lbl[p]+'</span>';}
 function firstDate(c){return(c.dates&&c.dates.length?c.dates[0]:c.dt)||'';}
 function allDates(c){return c.dates&&c.dates.length?c.dates:(c.dt?[c.dt]:[]);}
+function pastJobs(c){return c.pj||[];}
+function calEntries(ds){
+  var out=[];
+  clients.forEach(function(c){
+    if(allDates(c).includes(ds))out.push({c:c,st:c.st,sv:c.sv,tm:c.tm});
+    pastJobs(c).forEach(function(j){
+      if((j.dates||[]).includes(ds))out.push({c:c,st:j.st||'completed',sv:j.sv,tm:j.tm});
+    });
+  });
+  return out;
+}
 
 // MULTI-DATE PICKER
 window.mcNav=function(dir){mcMo+=dir;if(mcMo<0){mcMo=11;mcYr--;}if(mcMo>11){mcMo=0;mcYr++;}renderMC();};
@@ -1049,6 +1060,10 @@ window.saveClient=async function(){
       +' · '+((existing.st||'active').charAt(0).toUpperCase()+(existing.st||'active').slice(1));
     if(!existing.hist)existing.hist=[];
     existing.hist.push({type:'job',text:oldText,date:td()});
+    if(oldDates.length){
+      if(!existing.pj)existing.pj=[];
+      existing.pj.push({dates:oldDates,st:existing.st||'active',sv:existing.sv,tm:existing.tm});
+    }
     window._isReschedule=false;
   }
   var sortedDates=[...selectedDates].sort();
@@ -1067,6 +1082,7 @@ window.saveClient=async function(){
     hist:existing?existing.hist||[]:[],
     pays:existing?existing.pays||[]:[],
     photos:existing?existing.photos||[]:[],
+    pj:existing?existing.pj||[]:[],
     createdAt:existing?existing.createdAt:Date.now(),updatedAt:Date.now(),
   };
   if(!editId&&c.nt)c.hist.push({type:'note',text:c.nt,date:td()});
@@ -1339,31 +1355,39 @@ window.renderCal=function(){
   for(var d=1;d<=days;d++){
     var isT=now.getFullYear()===calYr&&now.getMonth()===calMo&&now.getDate()===d;
     var ds=calYr+'-'+String(calMo+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
-    var dc=clients.filter(c=>allDates(c).includes(ds));
+    var dc=calEntries(ds);
     var busyInfo=busyDates.get(ds);
     var busyCls=busyInfo?(busyInfo.type==='all'?' busy-all':' busy-times'):'';
     var numH=isT?'<div class="cdn"><span>'+d+'</span></div>':'<div class="cdn">'+d+'</div>';
-    var evs=dc.length?'<div class="cday-dots">'+dc.map(c=>'<div class="cdot cdot-'+c.st+'" title="'+c.fn+' '+c.ln+'"></div>').join('')+'</div>':'';
+    var evs=dc.length?'<div class="cday-dots">'+dc.map(e=>'<div class="cdot cdot-'+e.st+'" title="'+e.c.fn+' '+e.c.ln+'"></div>').join('')+'</div>':'';
     var busyDot=busyInfo&&!dc.length?'<div class="cday-dots"><div class="cdot" style="background:#e24b4a" title="Busy"></div></div>':'';
     html+='<div class="cday'+(isT?' today':'')+(dc.length?' has-event':'')+busyCls+'" onclick="openDayPopup(event,\''+ds+'\')" >'+numH+evs+busyDot+'</div>';
   }
   g.innerHTML=html;renderUpcoming();
 };
 
+function inMonth(dt){var d=new Date(dt+'T12:00:00');return d.getFullYear()===calYr&&d.getMonth()===calMo;}
 function renderUpcoming(){
   var ul=document.getElementById('upcoming');
-  var list=clients.filter(c=>allDates(c).some(dt=>{var d=new Date(dt+'T12:00:00');return d.getFullYear()===calYr&&d.getMonth()===calMo;}))
-    .sort((a,b)=>(firstDate(a)||'9999').localeCompare(firstDate(b)||'9999'));
-  if(!list.length){ul.innerHTML='<div style="font-size:12px;color:var(--t2);padding:8px 0">No appointments this month</div>';return;}
-  ul.innerHTML=list.map(c=>{
-    var clr={active:'#1d9e75',pending:'#d4a017',overdue:'#e24b4a',completed:'#888'}[c.st]||'#0f2844';
-    var fd1=firstDate(c);
-    var dlabel=fd1?new Date(fd1+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}):'';
-    var tlabel=c.tm?' · '+fmtTime(c.tm):'';
-    var extra=c.dates&&c.dates.length>1?' · '+c.dates.length+' days':'';
+  var items=[];
+  clients.forEach(function(c){
+    var dts=allDates(c);
+    if(dts.some(inMonth))items.push({c:c,st:c.st,sv:c.sv,tm:c.tm,dt:firstDate(c),extra:dts.length});
+    pastJobs(c).forEach(function(j){
+      var jd=j.dates||[];
+      if(jd.some(inMonth))items.push({c:c,st:j.st||'completed',sv:j.sv,tm:j.tm,dt:jd[0],extra:jd.length});
+    });
+  });
+  items.sort((a,b)=>(a.dt||'9999').localeCompare(b.dt||'9999'));
+  if(!items.length){ul.innerHTML='<div style="font-size:12px;color:var(--t2);padding:8px 0">No appointments this month</div>';return;}
+  ul.innerHTML=items.map(e=>{
+    var clr={active:'#1d9e75',pending:'#d4a017',overdue:'#e24b4a',completed:'#888'}[e.st]||'#0f2844';
+    var dlabel=e.dt?new Date(e.dt+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}):'';
+    var tlabel=e.tm?' · '+fmtTime(e.tm):'';
+    var extra=e.extra>1?' · '+e.extra+' days':'';
     return '<div class="ui"><div class="udot" style="background:'+clr+'"></div>'
-      +'<div><div class="un">'+c.fn+' '+c.ln+'</div>'
-      +'<div class="udt">'+dlabel+tlabel+' · '+(c.sv||'General')+extra+'</div>'
+      +'<div><div class="un">'+e.c.fn+' '+e.c.ln+'</div>'
+      +'<div class="udt">'+dlabel+tlabel+' · '+(e.sv||'General')+extra+'</div>'
       +'</div></div>';
   }).join('');
 }
@@ -1406,17 +1430,17 @@ window.openDayPopup=function(e,ds){
   // format date nicely
   var d=new Date(ds+'T12:00:00');
   titleEl.textContent=d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
-  // find clients on this day
-  var dc=clients.filter(c=>allDates(c).includes(ds));
+  // find clients on this day (current jobs + preserved past jobs)
+  var dc=calEntries(ds);
   if(!dc.length){
     clientsEl.innerHTML='<div class="day-popup-empty">No appointments — free day!</div>';
   } else {
-    clientsEl.innerHTML=dc.map(c=>{
-      var clr={active:'#1d9e75',pending:'#d4a017',overdue:'#e24b4a',completed:'#888'}[c.st]||'#0f2844';
+    clientsEl.innerHTML=dc.map(ent=>{
+      var c=ent.c;
       return '<div class="day-popup-client" onclick="closeDayPopup();openDetail(\''+c.id+'\')">'
         +'<div><div class="day-popup-client-name">'+c.fn+' '+c.ln+'</div>'
-        +'<div class="day-popup-client-sub">'+(c.sv||'General')+(c.tm?' at '+fmtTime(c.tm):'')+'</div></div>'
-        +'<span class="badge b-'+c.st+'" style="flex-shrink:0">'+c.st.charAt(0).toUpperCase()+c.st.slice(1)+'</span>'
+        +'<div class="day-popup-client-sub">'+(ent.sv||'General')+(ent.tm?' at '+fmtTime(ent.tm):'')+'</div></div>'
+        +'<span class="badge b-'+ent.st+'" style="flex-shrink:0">'+ent.st.charAt(0).toUpperCase()+ent.st.slice(1)+'</span>'
         +'</div>';
     }).join('');
   }
